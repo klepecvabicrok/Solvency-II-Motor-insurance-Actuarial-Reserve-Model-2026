@@ -83,10 +83,9 @@ The project processes market data in an SQLite database, estimates claim severit
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/klepecvabicrok/Solvency-II-Motor-insurance-Actuarial-Reserve-Model-      2026.git](https://github.com/klepecvabicrok/Solvency-II-Motor-insurance-Actuarial-Reserve-Model-2026.git)
+   git clone https://github.com/klepecvabicrok/Solvency-II-Motor-insurance-Actuarial-Reserve-Model-2026.git
    cd Solvency-II-Motor-insurance-Actuarial-Reserve-Model-2026
-   ```
-
+   
 2. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
