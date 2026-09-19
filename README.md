@@ -4,7 +4,7 @@ An actuarial modeling framework for analyzing the Slovenian motor insurance mark
 
 The project processes market data in an SQLite database, estimates claim severity inflation via log-linear regression, and runs Monte Carlo simulations (Poisson + Lognormal) to compute Best Estimate Liabilities (**BEL**) and Solvency Capital Requirements (**SCR**) under Solvency II standards.
 
-[LIVE DEMO](https://tvoj-streamlit-app-link.streamlit.app/)
+[LIVE DEMO](https://solvency-ii-motor-insurance-actuarial-reserve-model-2026-p5en7.streamlit.app/)
 
 ---
 
