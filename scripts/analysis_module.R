@@ -1,6 +1,8 @@
 # ==============================================================================
-# Slovenian Auto Insurance Market Analysis (RSQLite + dplyr + ggplot2)
-# Independent validation module for historical loss ratio trajectory
+# Slovenian Motor Insurance Market: independent R check of historical data
+# Recomputes loss ratios, frequency and real severity directly from SQLite,
+# so the Python model's inputs can be cross-checked in a second language.
+# Run from the project root:  Rscript scripts/analysis_module.R
 # ==============================================================================
 
 library(DBI)
@@ -9,48 +11,64 @@ library(dplyr)
 library(ggplot2)
 library(scales)
 
-# Fetch market data from local SQLite repository
+# Keep these two in sync with config.py, so R checks the same data as Python:
+DATA_END_YEAR    <- 2023  # config.DATA_END_YEAR: later years include foreign business
+TREND_START_YEAR <- 2011  # config.SEVERITY_START_YEAR (2011 for every line)
+
 conn <- dbConnect(RSQLite::SQLite(), "szz_market.db")
-claims_raw <- dbGetQuery(conn, "SELECT * FROM szz_claims")
+claims_raw <- dbGetQuery(conn, "
+  SELECT c.*, p.cpi_index
+  FROM szz_claims c
+  LEFT JOIN cpi p ON p.year = c.year
+")
 dbDisconnect(conn)
 
-# Calculate core actuarial KPIs: severity, frequency, and loss ratio
 claims_summary <- claims_raw %>%
+  filter(year <= DATA_END_YEAR) %>%
   mutate(
-    severity = claims_paid / claims,
-    frequency = claims / policies,
-    loss_ratio = claims_paid / written_premium
+    severity      = claims_paid / claims,
+    real_severity = severity / cpi_index,
+    frequency     = claims / policies,
+    loss_ratio    = claims_paid / written_premium
   )
 
-# Portfolio-level summary statistics grouped by line of business
+# Two ways to average a loss ratio over several years:
+#  - simple mean of the yearly ratios gives every year equal weight
+#  - premium-weighted (total claims / total premium) weights each year by its
+#    size; this is the actuarial standard and is what the Python model reports.
 summary_stats <- claims_summary %>%
   group_by(line) %>%
   summarise(
-    avg_loss_ratio = mean(loss_ratio),
-    total_premium = sum(written_premium),
-    total_claims = sum(claims_paid)
+    data_years            = paste(min(year), max(year), sep = "-"),
+    loss_ratio_weighted   = sum(claims_paid) / sum(written_premium),
+    loss_ratio_simple_avg = mean(loss_ratio),
+    total_premium         = sum(written_premium),
+    total_claims_paid     = sum(claims_paid),
+    # Log-linear trend of real severity over the trend window: slope ->
+    # superimposed inflation. Should match model_engine.py's value.
+    trend_years           = paste(TREND_START_YEAR, max(year), sep = "-"),
+    superimposed_infl     = exp(coef(lm(log(real_severity[year >= TREND_START_YEAR]) ~
+                                         year[year >= TREND_START_YEAR]))[2]) - 1,
+    .groups = "drop"
   )
 
-print(summary_stats)
+print(summary_stats, width = Inf)
 
-# Plot historical loss ratio trajectory across lines of business
+year_breaks <- pretty(claims_summary$year)
+
 p1 <- ggplot(claims_summary, aes(x = year, y = loss_ratio, color = line, group = line)) +
   geom_line(linewidth = 1.2) +
   geom_point(size = 2.5) +
   scale_y_continuous(labels = percent_format(accuracy = 1)) +
-  scale_x_continuous(breaks = seq(2016, 2025, by = 2)) +
+  scale_x_continuous(breaks = year_breaks) +
   labs(
-    title = "Historical Loss Ratio Trends (2016–2025)",
+    title = sprintf("Historical Loss Ratios (%d-%d)", min(claims_summary$year), max(claims_summary$year)),
     subtitle = "Source: Slovenian Insurance Association (SZZ)",
     x = "Year",
-    y = "Loss Ratio (Claims Paid / Written Premium)",
-    color = "Line of Business"
+    y = "Loss ratio (claims paid / written premium)",
+    color = "Line of business"
   ) +
   theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    plot.title = element_text(face = "bold")
-  )
+  theme(legend.position = "bottom", plot.title = element_text(face = "bold"))
 
-# Export visualization for report integration
 ggsave("loss_ratio_trend_R.png", plot = p1, width = 8, height = 5, dpi = 300)
