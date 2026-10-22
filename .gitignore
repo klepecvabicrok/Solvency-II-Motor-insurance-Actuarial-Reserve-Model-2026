@@ -12,3 +12,9 @@ venv/
 # OS files
 .DS_Store
 Thumbs.db
+*.pyc
+szz_market.db
+results.txt
+breaks_*.png
+check_step4.py
+.Rhistory
